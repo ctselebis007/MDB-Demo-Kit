@@ -1,0 +1,35 @@
+{
+  "name": "search-lab",
+  "requires": ["setup"],
+  "python": [],
+  "npm": [],
+  "collections": ["products"],
+  "minServerVersion": "9.0",
+  "codeMap": [
+    {
+      "feature": "Full-text search (`$search`, fuzzy, highlights)",
+      "file": "api/app/modules/search_lab/pipelines.py",
+      "docsUrl": "https://www.mongodb.com/docs/atlas/atlas-search/compound/"
+    },
+    {
+      "feature": "Vector search with pre-filters (`$vectorSearch`)",
+      "file": "api/app/modules/search_lab/pipelines.py",
+      "docsUrl": "https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/"
+    },
+    {
+      "feature": "Hybrid search (`$rankFusion`)",
+      "file": "api/app/modules/search_lab/pipelines.py",
+      "docsUrl": "https://www.mongodb.com/docs/manual/reference/operator/aggregation/rankFusion/"
+    },
+    {
+      "feature": "Search + Vector index definitions",
+      "file": "api/app/modules/search_lab/indexes.py",
+      "docsUrl": "https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/"
+    },
+    {
+      "feature": "Voyage AI reranking (`rerank-3`)",
+      "file": "api/app/modules/search_lab/router.py",
+      "docsUrl": "https://www.mongodb.com/docs/voyageai/models/rerankers/"
+    }
+  ]
+}

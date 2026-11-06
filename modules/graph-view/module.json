@@ -1,0 +1,25 @@
+{
+  "name": "graph-view",
+  "requires": ["setup"],
+  "python": [],
+  "npm": [],
+  "collections": ["nodes"],
+  "minServerVersion": "9.0",
+  "codeMap": [
+    {
+      "feature": "Vector search for start nodes + `$graphLookup` traversal",
+      "file": "api/app/modules/graph_view/pipelines.py",
+      "docsUrl": "https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/"
+    },
+    {
+      "feature": "Graph data model (adjacency lists on each node)",
+      "file": "api/app/modules/graph_view/seed.py",
+      "docsUrl": "https://www.mongodb.com/docs/manual/tutorial/model-tree-structures/"
+    },
+    {
+      "feature": "Vector index with `type` filter",
+      "file": "api/app/modules/graph_view/indexes.py",
+      "docsUrl": "https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/"
+    }
+  ]
+}
