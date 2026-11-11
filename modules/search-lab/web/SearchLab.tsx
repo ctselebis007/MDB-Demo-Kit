@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState, type FormEvent } from 'react'
 import { api, type Schemas } from '../../core/api'
-import { QueryDrawer } from '../../core/QueryDrawer'
+import { QueryDrawer, abbreviate } from '../../core/QueryDrawer'
 import { COLUMN_KEYS, otherRanks, rankIndex, type ColumnKey, type RankIndex } from './crossHighlight'
 
 type Response = Schemas['SearchLabResponse']
@@ -61,7 +61,7 @@ function ResultColumn(props: {
   ranks: RankIndex
   hovered: string | null
   onHover: (id: string | null) => void
-  onOpenQuery: () => void
+  onExplain: () => void
 }) {
   const { col, data, error, disabledReason, ranks, hovered, onHover } = props
   const meta = COLUMNS[col]
@@ -79,13 +79,6 @@ function ResultColumn(props: {
         </div>
         <div className="text-right">
           {data && <p className="text-xs text-slate-500">{data.timings.server_ms.toFixed(0)} ms</p>}
-          <button
-            className="text-mdb-forest text-xs underline disabled:opacity-40"
-            disabled={!data}
-            onClick={props.onOpenQuery}
-          >
-            Query
-          </button>
         </div>
       </header>
       {disabled && <p className="p-3 text-sm text-slate-600">{disabledReason}</p>}
@@ -130,7 +123,51 @@ function ResultColumn(props: {
         ))}
         {data && data.results.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">No results</li>}
       </ol>
+      {data && <PipelinePanel col={col} pipeline={data.pipeline} onExplain={props.onExplain} />}
     </section>
+  )
+}
+
+function PipelinePanel({ col, pipeline, onExplain }: { col: ColumnKey; pipeline: unknown[]; onExplain: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    await navigator.clipboard.writeText(JSON.stringify(pipeline, null, 2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <footer className="mt-auto border-t border-slate-100 text-xs">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`${col}-pipeline`}
+        onClick={() => setOpen((o) => !o)}
+        className="text-mdb-forest flex w-full items-center gap-1 px-3 py-2 font-medium hover:bg-slate-50"
+      >
+        <span aria-hidden>{open ? '▾' : '▸'}</span>
+        {open ? 'Hide' : 'Show'} aggregation pipeline
+      </button>
+      {open && (
+        <div id={`${col}-pipeline`} className="space-y-2 px-3 pb-3">
+          {col === 'rerank' && (
+            <p className="text-slate-500">Runs the hybrid pipeline below, then reranks the top results with Voyage rerank-3 in the API.</p>
+          )}
+          <div className="flex gap-2">
+            <button type="button" onClick={copy} className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50">
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button type="button" onClick={onExplain} className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50">
+              Explain…
+            </button>
+            {col !== 'text' && <span className="ml-auto self-center text-slate-400">Copy includes the full query vector</span>}
+          </div>
+          <pre className="max-h-80 overflow-auto rounded bg-slate-50 p-2 leading-relaxed" data-testid={`${col}-pipeline-json`}>
+            {JSON.stringify(abbreviate(pipeline), null, 2)}
+          </pre>
+        </div>
+      )}
+    </footer>
   )
 }
 
@@ -248,7 +285,7 @@ export function SearchLab() {
               ranks={ranks}
               hovered={hovered}
               onHover={setHovered}
-              onOpenQuery={() => setDrawer(col)}
+              onExplain={() => setDrawer(col)}
             />
           ))}
         </div>

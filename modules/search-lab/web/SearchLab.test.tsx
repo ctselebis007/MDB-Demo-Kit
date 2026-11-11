@@ -63,12 +63,31 @@ describe('SearchLab', () => {
     expect(screen.getByTestId('vector-a')).toHaveAttribute('data-hovered', 'false')
   })
 
-  it('explain toggle re-runs the column with explain=true', async () => {
+  it('each column toggles its aggregation pipeline and copies the exact JSON', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
+    setup()
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    for (const name of ['Full-text', 'Vector', 'Hybrid']) {
+      const region = await screen.findByRole('region', { name })
+      const toggle = within(region).getByRole('button', { name: /show aggregation pipeline/i })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle)
+      expect(within(region).getByRole('button', { name: /hide aggregation pipeline/i })).toHaveAttribute('aria-expanded', 'true')
+      expect(within(region).getByText(/"\$limit": 10/)).toBeInTheDocument()
+    }
+    const text = screen.getByRole('region', { name: 'Full-text' })
+    await user.click(within(text).getByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify([{ $limit: 10 }], null, 2))
+  })
+
+  it('explain re-runs the column with explain=true', async () => {
     const user = userEvent.setup()
     const fetchMock = setup()
     await user.click(screen.getByRole('button', { name: 'Search' }))
     const text = await screen.findByRole('region', { name: 'Full-text' })
-    await user.click(await within(text).findByRole('button', { name: 'Query' }))
+    await user.click(within(text).getByRole('button', { name: /show aggregation pipeline/i }))
+    await user.click(within(text).getByRole('button', { name: 'Explain…' }))
     await user.click(screen.getByLabelText('Explain'))
     const bodies = fetchMock.mock.calls
       .map(([, init]) => (init?.body ? JSON.parse(String(init.body)) : null))
