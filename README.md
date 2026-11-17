@@ -5,6 +5,16 @@ The standard way to build MongoDB Atlas demos (Atlas Search, Vector Search, hybr
 - **Stack:** FastAPI + PyMongo async (uv) · React + TypeScript + Vite + Tailwind + D3 · one command: `npm run dev`
 - **Design:** [demo-kit-standard-design.md](demo-kit-standard-design.md) · **Plan:** [demo-kit-standard-implementation.md](demo-kit-standard-implementation.md)
 
+
+## Architecture
+
+```mermaid
+flowchart LR
+  UI[React + TS · Vite · Tailwind · D3] -->|/api/* via Vite proxy| API[FastAPI · uv]
+  API -->|PyMongo async| ATLAS[(MongoDB Atlas<br/>collections · Search · Vector Search)]
+  API -->|embed / rerank| EMB[Voyage AI or OpenAI]
+```
+
 ## Layout
 
 ```
