@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Usage: npm run new -- <name> --modules search-lab,graph-view [--out ../] [--skip-install]
+// Usage: npm run new -- <name> [--modules search-lab,graph-view] [--out ../] [--skip-install]
+// Omit --modules for a blank starter: Setup page, core API/web and tooling only.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
@@ -18,7 +19,8 @@ import {
 const { positional, flags } = parseArgs(process.argv.slice(2))
 const name = positional[0]
 if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
-  console.error('Usage: npm run new -- <name> --modules a,b [--out <dir>] [--skip-install]')
+  console.error('Usage: npm run new -- <name> [--modules a,b] [--out <dir>] [--skip-install]')
+  console.error('Omit --modules for a blank starter (Setup only).')
   console.error(`Modules: ${kitModules().join(', ')}`)
   process.exit(1)
 }
@@ -55,5 +57,6 @@ try {
   console.warn('git init failed; skipping')
 }
 
-console.log(`\n✓ Created ${target} with modules: ${moduleNames.join(', ') || '(setup only)'}`)
+console.log(`\n✓ Created ${target} with modules: ${moduleNames.join(', ') || '(none, blank starter)'}`)
 console.log(`\n  cd ${target}\n  ${flags['skip-install'] ? 'npm install && ' : ''}npm run dev\n`)
+if (!moduleNames.length) console.log('  Add your own module: see "Build your own module" in the generated README.\n')

@@ -65,4 +65,19 @@ describe('SetupPage', () => {
     expect(options).toEqual(['text-embedding-3-small', 'text-embedding-3-large'])
     expect(screen.getByTestId('dims')).toHaveTextContent('1536 dimensions')
   })
+
+  it('explains how to add a module and disables seeding when none are installed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/status') ? status : masked))),
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SetupPage />
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByRole('note')).toHaveTextContent('No feature modules yet')
+    expect(screen.getByRole('button', { name: 'Seed Database' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Create Indexes' })).toBeDisabled()
+  })
 })

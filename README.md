@@ -13,7 +13,7 @@ modules/
   search-lab/        full-text vs vector vs hybrid vs rerank   { api/, web/, module.json }
   graph-view/        $vectorSearch + $graphLookup + D3 graph   { api/, web/, module.json }
 scripts/
-  new-demo.mjs       npm run new -- <name> --modules a,b [--out <dir>] [--skip-install]
+  new-demo.mjs       npm run new -- <name> [--modules a,b] [--out <dir>] [--skip-install]
   add-module.mjs     node <kit>/scripts/add-module.mjs <module>   (run inside a demo)
   spike/             T02 spike scripts (Atlas + providers)
 docs/                spike notes, smoke checklist
@@ -30,6 +30,14 @@ npm run dev
 ```
 
 The generated repo is standalone (no runtime link to the kit). It contains the template, the selected modules under `api/app/modules/<name>/` and `web/src/modules/<name>/`, regenerated `web/src/core/api-types.ts`, and a README with a "Where's the MongoDB code?" table built from each module's `codeMap`.
+
+**Blank starter:** omit `--modules` to get only the Setup page, core API/web, tests, linting and CI-ready tooling, as a starting point for a new project with its own design and datasets:
+
+```bash
+npm run new -- acme-starter --out ~/demos
+```
+
+Its README includes a "Build your own module" guide. Kit modules can still be added later with `add-module`.
 
 Add a module later:
 

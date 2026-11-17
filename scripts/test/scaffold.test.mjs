@@ -58,6 +58,20 @@ describe('scaffolding', () => {
   const out = mkdtempSync(join(tmpdir(), 'demokit-scaffold-'))
   after(() => rmSync(out, { recursive: true, force: true }))
 
+  it('creates a blank starter when --modules is omitted', () => {
+    node(['scripts/new-demo.mjs', 'blank', '--out', out, '--skip-install'])
+    const blank = tree(join(out, 'blank'))
+    const modulePaths = [...blank.keys()].filter((p) => /^(api\/app|web\/src)\/modules\/[^/]+\//.test(p))
+    assert.deepEqual(modulePaths, [])
+    assert.ok(blank.has('api/app/modules/__init__.py'))
+    assert.ok(blank.has('api/app/core/setup.py'))
+    const readme = blank.get('README.md')
+    assert.match(readme, /^# blank$/m)
+    assert.match(readme, /## Build your own module/)
+    assert.doesNotMatch(readme, /api\/app\/modules\/\w+\/pipelines\.py/)
+    assert.equal(JSON.parse(blank.get('package.json')).name, 'blank')
+  })
+
   it('add-module yields the same tree as generating both modules at once', () => {
     node(['scripts/new-demo.mjs', 'both', '--modules', 'search-lab,graph-view', '--out', out, '--skip-install'])
     node(['scripts/new-demo.mjs', 'one', '--modules', 'search-lab', '--out', out, '--skip-install'])

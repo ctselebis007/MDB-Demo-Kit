@@ -57,6 +57,29 @@ Settings are stored server-side in `api/config/settings.json` (gitignored, mode 
 
 To re-theme the demo for a prospect, edit the module's `seed.py` (vocabulary), `indexes.py` and UI labels, then re-seed.
 
+## Build your own module
+
+A module is a pair of folders that are discovered automatically: copy them in, restart `npm run dev`, and the module's API routes, seed data, indexes and nav entry appear.
+
+```
+api/app/modules/<name>/        Python package (use underscores, e.g. my_feature)
+  __init__.py
+  router.py      router = APIRouter(prefix="/api/<name>")      required
+  seed.py        collections(), generate(rng), embed_fields      optional
+  indexes.py     regular(), search(), vector(dims)               optional
+  pipelines.py   pure functions that build aggregation pipelines
+web/src/modules/<name>/
+  index.tsx      export const route = { path, element }; export const navItem = { label, order }
+```
+
+- **`seed.py`**: `generate(rng)` returns `{collection: [docs]}` using the seeded `random.Random` so data is deterministic. Fields listed in `embed_fields = {"collection": ["title", "description"]}` are embedded into `embedding` during **Seed Database**. Seeding drops and recreates only the collections from `collections()`.
+- **`indexes.py`**: return dicts like `{"collection": "items", "name": "items_vector", "definition": {...}}`. `vector(dims)` receives the dimensions of the model the data was embedded with.
+- **`router.py`**: add `Depends(require_ready)` (from `app.core.meta`) so endpoints return `409` until data is seeded and indexed, run pipelines with `run_pipeline()` and return `QueryResponse` (`app.core.query`) so the UI's Query Drawer can show the exact pipeline, timings and `explain()`.
+- **Web**: call the API with `api.post()` from `web/src/core/api.ts` and type responses with `Schemas['...']` after running `npm run gen:types`. Reuse `QueryDrawer` from `web/src/core/QueryDrawer.tsx`.
+- Put tests next to the code (`api/app/modules/<name>/tests/`, `*.test.tsx`); `npm test` picks them up.
+
+Then **Seed Database** and **Create Indexes** on Setup, and the module's nav entry becomes active.
+
 Notes: this is a local, single-user demo (no auth) bound to `127.0.0.1`. Seed and index jobs run in memory, so a code reload during seeding aborts the job: run Seed again. Tested on macOS and Linux; on Windows the settings file permissions are not enforced.
 
 ## License

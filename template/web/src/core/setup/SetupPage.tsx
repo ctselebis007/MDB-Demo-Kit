@@ -208,9 +208,10 @@ export function SetupPage() {
   const set = (patch: Partial<FormState>) => setForm({ ...form, ...patch })
   const seeding = seedJob?.status === 'running' || seed.isPending
   const indexing = indexJob?.status === 'running' || indexes.isPending
+  const noModules = status?.modules.length === 0
 
   const confirmSeed = () => {
-    const names = status?.modules.length ? status.modules.join(', ') : 'all modules'
+    const names = status?.modules.join(', ')
     if (window.confirm(`Seeding drops and recreates the collections for: ${names}. Continue?`)) seed.mutate()
   }
 
@@ -312,6 +313,16 @@ export function SetupPage() {
       </section>
 
       <section className="space-y-6">
+        {noModules && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900" role="note">
+            <p className="font-medium">No feature modules yet.</p>
+            <p className="mt-1">
+              Add your own under <code>api/app/modules/&lt;name&gt;/</code> and <code>web/src/modules/&lt;name&gt;/</code> (see
+              &ldquo;Build your own module&rdquo; in the README), then restart <code>npm run dev</code>. Seed and Create
+              Indexes work once a module defines data.
+            </p>
+          </div>
+        )}
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           <h2 className="font-semibold">1. Seed Database</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -324,7 +335,7 @@ export function SetupPage() {
           )}
           <button
             className={`${btn} bg-mdb-forest mt-3 text-white`}
-            disabled={dirty || seeding || !saved.has_uri}
+            disabled={dirty || seeding || !saved.has_uri || noModules}
             title={dirty ? 'Save your changes first' : undefined}
             onClick={confirmSeed}
           >
@@ -338,7 +349,7 @@ export function SetupPage() {
           {status?.indexed && <p className="mt-1 text-xs text-emerald-700">All indexes ready.</p>}
           <button
             className={`${btn} bg-mdb-forest mt-3 text-white`}
-            disabled={dirty || indexing || !status?.seeded || seeding}
+            disabled={dirty || indexing || !status?.seeded || seeding || noModules}
             onClick={() => indexes.mutate()}
           >
             {indexing ? 'Building…' : 'Create Indexes'}
