@@ -44,7 +44,7 @@ The generated repo is standalone (no runtime link to the kit). It contains the t
 **Blank starter:** omit `--modules` to get only the Setup page, core API/web, tests, linting and CI-ready tooling, as a starting point for a new project with its own design and datasets:
 
 ```bash
-npm run new -- acme-starter --out ~/demos
+npm run new -- demo-starter --out ~/demos
 ```
 
 Its README includes a "Build your own module" guide. Kit modules can still be added later with `add-module`.
