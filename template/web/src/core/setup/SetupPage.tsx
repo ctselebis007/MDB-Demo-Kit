@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { api, type Schemas } from '../api'
 import { statusKey, useSetupStatus } from '../status'
 import { pushToast, toastError } from '../toast'
@@ -8,6 +8,8 @@ type Masked = Schemas['MaskedSettings']
 type Update = Schemas['SettingsUpdate']
 type Job = Schemas['Job']
 type CheckRow = Schemas['CheckRow']
+type Inventory = Schemas['Inventory']
+type InventoryIndex = Schemas['InventoryIndex']
 type Provider = Masked['provider']
 
 export interface FormState {
@@ -109,6 +111,116 @@ function CheckRows({ rows }: { rows: CheckRow[] }) {
   )
 }
 
+const INDEX_STYLE: Record<InventoryIndex['status'], string> = {
+  ready: STATUS_STYLE.ok,
+  pending: STATUS_STYLE.warn,
+  missing: STATUS_STYLE.fail,
+  failed: STATUS_STYLE.fail,
+  unknown: STATUS_STYLE.skip,
+}
+
+const KIND_LABEL: Record<InventoryIndex['kind'], string> = {
+  regular: 'Regular',
+  search: 'Atlas Search',
+  vectorSearch: 'Vector Search',
+}
+
+function Badge({ className, children }: { className: string; children: ReactNode }) {
+  return <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${className}`}>{children}</span>
+}
+
+export function InventoryPanel({ inventory, pending }: { inventory: Inventory | undefined; pending: boolean }) {
+  let body: ReactNode
+  if (pending) {
+    body = <p className="text-sm text-slate-500">Checking database…</p>
+  } else if (!inventory) {
+    body = <p className="text-sm text-slate-500">Click Test Connections to check which database, collections and indexes exist.</p>
+  } else {
+    const indexes = inventory.collections.flatMap((c) => c.indexes ?? [])
+    const present = inventory.collections.filter((c) => c.exists).length
+    const ready = indexes.filter((i) => i.status === 'ready').length
+    body = (
+      <div className="space-y-3 text-sm">
+        {inventory.error && (
+          <p className="text-red-700">
+            {inventory.error.message} {inventory.error.hint && <span className="text-slate-600">— {inventory.error.hint}</span>}
+          </p>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <span>
+            Database <code>{inventory.db_name}</code>
+          </span>
+          {!inventory.reachable ? (
+            <Badge className={STATUS_STYLE.skip}>unknown</Badge>
+          ) : inventory.db_exists ? (
+            <Badge className={STATUS_STYLE.ok}>exists</Badge>
+          ) : (
+            <Badge className={STATUS_STYLE.warn}>not created</Badge>
+          )}
+        </div>
+        {inventory.modules.length === 0 ? (
+          <p className="text-slate-600">No modules installed, so no collections or indexes are expected.</p>
+        ) : inventory.collections.length === 0 ? (
+          <p className="text-slate-600">Installed modules ({inventory.modules.join(', ')}) declare no collections or indexes.</p>
+        ) : (
+          <>
+            {inventory.reachable && (
+              <p className="text-xs text-slate-500" data-testid="inventory-summary">
+                {present}/{inventory.collections.length} collections · {ready}/{indexes.length} indexes ready
+              </p>
+            )}
+            <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+              {inventory.collections.map((c) => (
+                <li key={c.name} className="space-y-1 px-3 py-2" data-testid={`collection-${c.name}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>
+                      <code className="font-medium">{c.name}</code> <span className="text-xs text-slate-500">({c.module})</span>
+                    </span>
+                    {!inventory.reachable ? (
+                      <Badge className={STATUS_STYLE.skip}>unknown</Badge>
+                    ) : c.exists ? (
+                      <Badge className={STATUS_STYLE.ok}>{c.count ?? 0} docs</Badge>
+                    ) : (
+                      <Badge className={STATUS_STYLE.fail}>missing</Badge>
+                    )}
+                  </div>
+                  {(c.indexes ?? []).length === 0 ? (
+                    <p className="pl-3 text-xs text-slate-500">No indexes declared.</p>
+                  ) : (
+                    <ul className="space-y-1 pl-3">
+                      {(c.indexes ?? []).map((i) => (
+                        <li key={i.name} className="flex items-center justify-between gap-2 text-xs">
+                          <span title={i.detail || undefined}>
+                            {i.name} <span className="text-slate-500">· {KIND_LABEL[i.kind]}</span>
+                          </span>
+                          <Badge className={inventory.reachable ? INDEX_STYLE[i.status] : STATUS_STYLE.skip}>
+                            {inventory.reachable ? i.status : 'unknown'}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {(inventory.other_collections ?? []).length > 0 && (
+          <p className="text-xs text-slate-500">
+            Other collections in this database: {(inventory.other_collections ?? []).join(', ')}
+          </p>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-6" data-testid="inventory">
+      <h2 className="mb-3 font-semibold">Database Status</h2>
+      {body}
+    </div>
+  )
+}
+
 function useJob(id: string | null, onFinished: (job: Job) => void) {
   const query = useQuery({
     queryKey: ['job', id],
@@ -169,9 +281,18 @@ export function SetupPage() {
     if (saved && !form) setForm(fromMasked(saved))
   }, [saved, form])
 
+  const inventory = useMutation({
+    mutationFn: (f: FormState) => api.post<Inventory>('/api/setup/inventory', buildUpdate(f)),
+    onError: toastError,
+  })
   const refresh = () => qc.invalidateQueries({ queryKey: statusKey })
-  const seedJob = useJob(seedJobId, refresh)
-  const indexJob = useJob(indexJobId, refresh)
+  const afterJob = () => {
+    refresh()
+    // Keep the status widget current once the user has run a check.
+    if (inventory.data && form) inventory.mutate(form)
+  }
+  const seedJob = useJob(seedJobId, afterJob)
+  const indexJob = useJob(indexJobId, afterJob)
 
   const save = useMutation({
     mutationFn: (f: FormState) => api.put<Masked>('/api/setup', buildUpdate(f)),
@@ -305,7 +426,14 @@ export function SetupPage() {
           <button className={`${btn} bg-mdb-forest text-white hover:bg-mdb-forest/90`} disabled={save.isPending} onClick={() => save.mutate(form)}>
             Save
           </button>
-          <button className={`${btn} border border-slate-300 hover:bg-slate-50`} disabled={test.isPending} onClick={() => test.mutate(form)}>
+          <button
+            className={`${btn} border border-slate-300 hover:bg-slate-50`}
+            disabled={test.isPending}
+            onClick={() => {
+              test.mutate(form)
+              inventory.mutate(form)
+            }}
+          >
             {test.isPending ? 'Testing…' : 'Test Connections'}
           </button>
         </div>
@@ -356,6 +484,7 @@ export function SetupPage() {
           </button>
           <JobProgress job={indexJob} />
         </div>
+        <InventoryPanel inventory={inventory.data} pending={inventory.isPending} />
         {status?.error && (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {status.error.message} <span className="text-slate-600">{status.error.hint}</span>

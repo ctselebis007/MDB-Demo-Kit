@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SetupPage, buildUpdate, type FormState } from './SetupPage'
+import { InventoryPanel, SetupPage, buildUpdate, type FormState } from './SetupPage'
 
 const masked = {
   mongo_uri: 'mongodb+srv://alice:••••@cluster0.mongodb.net/',
@@ -79,5 +79,70 @@ describe('SetupPage', () => {
     expect(await screen.findByRole('note')).toHaveTextContent('No feature modules yet')
     expect(screen.getByRole('button', { name: 'Seed Database' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Create Indexes' })).toBeDisabled()
+  })
+
+  it('shows database, collection and index status after Test Connections', async () => {
+    const inventory = {
+      reachable: true,
+      db_name: 'demo',
+      db_exists: true,
+      modules: ['search-lab'],
+      collections: [
+        {
+          name: 'products',
+          module: 'search-lab',
+          exists: true,
+          count: 500,
+          indexes: [
+            { name: 'category_price', kind: 'regular', status: 'ready', detail: '' },
+            { name: 'products_vector', kind: 'vectorSearch', status: 'missing', detail: '' },
+          ],
+        },
+        { name: 'reviews', module: 'search-lab', exists: false, count: null, indexes: [] },
+      ],
+      other_collections: ['legacy'],
+      error: null,
+    }
+    const fetch = vi.fn(async (url: string) => {
+      const body = url.endsWith('/status')
+        ? { ...status, modules: ['search-lab'] }
+        : url.endsWith('/inventory')
+          ? inventory
+          : url.endsWith('/test')
+            ? { rows: [] }
+            : masked
+      return new Response(JSON.stringify(body))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SetupPage />
+      </QueryClientProvider>,
+    )
+    const panel = await screen.findByTestId('inventory')
+    expect(panel).toHaveTextContent('Click Test Connections')
+    expect(fetch.mock.calls.some(([u]) => String(u).endsWith('/inventory'))).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Test Connections' }))
+    expect(await screen.findByTestId('inventory-summary')).toHaveTextContent('1/2 collections · 1/2 indexes ready')
+    expect(screen.getByTestId('collection-products')).toHaveTextContent('500 docs')
+    expect(screen.getByTestId('collection-products')).toHaveTextContent('products_vector · Vector Search')
+    expect(screen.getByTestId('collection-reviews')).toHaveTextContent('missing')
+    expect(screen.getByTestId('collection-reviews')).toHaveTextContent('No indexes declared.')
+    expect(panel).toHaveTextContent('Other collections in this database: legacy')
+  })
+})
+
+describe('InventoryPanel', () => {
+  it('says nothing is expected when no modules are installed', () => {
+    render(
+      <InventoryPanel
+        pending={false}
+        inventory={{ reachable: true, db_name: 'demo', db_exists: false, modules: [], collections: [], other_collections: [], error: null }}
+      />,
+    )
+    expect(screen.getByTestId('inventory')).toHaveTextContent('not created')
+    expect(screen.getByTestId('inventory')).toHaveTextContent('No modules installed')
   })
 })

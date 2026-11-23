@@ -65,9 +65,14 @@ describe('scaffolding', () => {
     assert.deepEqual(modulePaths, [])
     assert.ok(blank.has('api/app/modules/__init__.py'))
     assert.ok(blank.has('api/app/core/setup.py'))
+    for (const f of ['.github/copilot-instructions.md', '.github/skills/brainstorm/SKILL.md', '.github/skills/brainstorming/SKILL.md', 'docs/plans/.gitkeep']) {
+      assert.ok(blank.has(f), f)
+    }
+    assert.ok(statSync(join(out, 'blank', 'TempAssets')).isDirectory())
     const readme = blank.get('README.md')
     assert.match(readme, /^# blank$/m)
     assert.match(readme, /## Build your own module/)
+    assert.match(readme, /## Design with AI agents/)
     assert.doesNotMatch(readme, /api\/app\/modules\/\w+\/pipelines\.py/)
     assert.equal(JSON.parse(blank.get('package.json')).name, 'blank')
   })

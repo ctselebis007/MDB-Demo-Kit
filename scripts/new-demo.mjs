@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Usage: npm run new -- <name> [--modules search-lab,graph-view] [--out ../] [--skip-install]
 // Omit --modules for a blank starter: Setup page, core API/web and tooling only.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   KIT_ROOT,
@@ -41,6 +41,8 @@ if (existsSync(target)) {
 }
 
 copyTemplate(KIT_ROOT, target)
+// Gitignored drop folder for prospect reference material used while brainstorming.
+mkdirSync(join(target, 'TempAssets'))
 const pkgPath = join(target, 'package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 writeFileSync(pkgPath, `${JSON.stringify({ ...pkg, name }, null, 2)}\n`)

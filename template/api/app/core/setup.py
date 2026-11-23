@@ -6,16 +6,18 @@ import asyncio
 import re
 import time
 import uuid
-from typing import Literal
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ValidationError
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.db import get_db, make_client
 from app.core.embeddings import make_provider
 from app.core.errors import AppError, to_app_error
 from app.core.jobs import Job, JobError, jobs
-from app.core.meta import DemoMeta, read_meta, readiness_error
+from app.core.meta import META_COLLECTION, DemoMeta, read_meta, readiness_error
 from app.core.models import ApiModel
 from app.core.registry import ModuleInfo
 from app.core.seeding import build_indexes, seed_all
@@ -48,6 +50,31 @@ class SetupStatus(ApiModel):
     reseed_required: bool
     meta: DemoMeta | None = None
     modules: list[str]
+    error: JobError | None = None
+
+
+class InventoryIndex(ApiModel):
+    name: str
+    kind: Literal["regular", "search", "vectorSearch"]
+    status: Literal["ready", "pending", "missing", "failed", "unknown"]
+    detail: str = ""
+
+
+class InventoryCollection(ApiModel):
+    name: str
+    module: str
+    exists: bool
+    count: int | None = None
+    indexes: list[InventoryIndex] = []
+
+
+class Inventory(ApiModel):
+    reachable: bool
+    db_name: str
+    db_exists: bool = False
+    modules: list[str]
+    collections: list[InventoryCollection] = []
+    other_collections: list[str] = []
     error: JobError | None = None
 
 
@@ -332,6 +359,104 @@ async def test_connections(update: SettingsUpdate) -> CheckResults:
     s = _validated(get_store().merged, update)
     atlas, embedding = await asyncio.gather(_check_atlas(s), _check_embedding(s))
     return CheckResults(rows=[*atlas, embedding])
+
+
+CHECK_PREFIX = "_demokit_check_"
+
+
+def _expected_collections(modules: list[ModuleInfo], dims: int) -> list[InventoryCollection]:
+    """Collections and indexes the installed modules declare, all initially missing."""
+    out: dict[str, InventoryCollection] = {}
+
+    def get(name: str, module: str) -> InventoryCollection:
+        return out.setdefault(name, InventoryCollection(name=name, module=module, exists=False))
+
+    for m in modules:
+        if m.seed:
+            for name in m.seed.collections():
+                get(name, m.slug)
+        if m.indexes:
+            for idx in m.indexes.regular():
+                get(idx["collection"], m.slug).indexes.append(
+                    InventoryIndex(name=idx["name"], kind="regular", status="missing")
+                )
+            for spec in m.indexes.search():
+                get(spec["collection"], m.slug).indexes.append(
+                    InventoryIndex(name=spec["name"], kind="search", status="missing")
+                )
+            for spec in m.indexes.vector(dims):
+                get(spec["collection"], m.slug).indexes.append(
+                    InventoryIndex(name=spec["name"], kind="vectorSearch", status="missing")
+                )
+    return list(out.values())
+
+
+async def _inspect_collection(db: AsyncDatabase, c: InventoryCollection) -> None:
+    coll = db[c.name]
+    c.count = await coll.estimated_document_count()
+    regular = {i["name"] for i in await (await coll.list_indexes()).to_list()}
+    wanted = [i for i in c.indexes if i.kind != "regular"]
+    search: dict[str, Mapping[str, Any]] = {}
+    search_error = ""
+    if wanted:
+        try:
+            search = {i["name"]: i for i in await (await coll.list_search_indexes()).to_list()}
+        except Exception as exc:
+            search_error = to_app_error(exc).message
+    for idx in c.indexes:
+        if idx.kind == "regular":
+            idx.status = "ready" if idx.name in regular else "missing"
+        elif search_error:
+            idx.status, idx.detail = "unknown", search_error
+        elif (info := search.get(idx.name)) is not None:
+            state = str(info.get("status", "PENDING"))
+            if state == "FAILED":
+                idx.status = "failed"
+            elif state == "READY" and info.get("queryable"):
+                idx.status = "ready"
+            else:
+                idx.status = "pending"
+            idx.detail = state.lower()
+
+
+@router.post("/inventory", response_model=Inventory)
+async def inventory(update: SettingsUpdate, request: Request) -> Inventory:
+    """What exists in the target database vs. what the installed modules expect."""
+    s = _validated(get_store().merged, update)
+    modules = _modules(request)
+    result = Inventory(
+        reachable=False,
+        db_name=s.db_name,
+        modules=[m.slug for m in modules],
+        collections=_expected_collections(modules, s.dims),
+    )
+    if not s.mongo_uri or not URI_RE.match(s.mongo_uri):
+        result.error = JobError(
+            code="NOT_CONFIGURED",
+            message="No valid connection string.",
+            hint="Enter a mongodb+srv:// string, then Test Connections.",
+        )
+        return result
+
+    client = None
+    try:
+        client = make_client(s.mongo_uri)
+        db = client[s.db_name]
+        names = {n for n in await db.list_collection_names() if not n.startswith(CHECK_PREFIX)}
+        result.reachable = True
+        result.db_exists = bool(names)
+        expected = {c.name for c in result.collections}
+        result.other_collections = sorted(n for n in names - expected if n != META_COLLECTION)
+        for c in result.collections:
+            c.exists = c.name in names
+        await asyncio.gather(*(_inspect_collection(db, c) for c in result.collections if c.exists))
+    except Exception as exc:
+        err = to_app_error(exc)
+        result.error = JobError(code=err.code, message=err.message, hint=err.hint)
+    finally:
+        if client is not None:
+            await client.close()
+    return result
 
 
 @router.post("/seed", response_model=Job)

@@ -70,6 +70,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inventory
+         * @description What exists in the target database vs. what the installed modules expect.
+         */
+        post: operations["inventory_api_setup_inventory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/seed": {
         parameters: {
             query?: never;
@@ -176,6 +196,67 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Inventory */
+        Inventory: {
+            /** Reachable */
+            reachable: boolean;
+            /** Db Name */
+            db_name: string;
+            /**
+             * Db Exists
+             * @default false
+             */
+            db_exists: boolean;
+            /** Modules */
+            modules: string[];
+            /**
+             * Collections
+             * @default []
+             */
+            collections: components["schemas"]["InventoryCollection"][];
+            /**
+             * Other Collections
+             * @default []
+             */
+            other_collections: string[];
+            error: components["schemas"]["JobError"] | null;
+        };
+        /** InventoryCollection */
+        InventoryCollection: {
+            /** Name */
+            name: string;
+            /** Module */
+            module: string;
+            /** Exists */
+            exists: boolean;
+            /** Count */
+            count: number | null;
+            /**
+             * Indexes
+             * @default []
+             */
+            indexes: components["schemas"]["InventoryIndex"][];
+        };
+        /** InventoryIndex */
+        InventoryIndex: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "regular" | "search" | "vectorSearch";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "pending" | "missing" | "failed" | "unknown";
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
         };
         /** Job */
         Job: {
@@ -452,6 +533,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckResults"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inventory_api_setup_inventory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inventory"];
                 };
             };
             /** @description Validation Error */

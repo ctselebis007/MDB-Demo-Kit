@@ -12,9 +12,10 @@ Needs: an Atlas 9.0 M10+ cluster with your IP on the access list, a Voyage key (
 - [ ] Setup with **Voyage**: paste URI + key, **Save**. The URI shows `user:••••@`, key shows last 4
 - [ ] Reload: fields stay blank, placeholders show the saved values. **Save** again with blank secrets keeps them
 - [ ] **Test Connections**: all rows `ok`, ping row shows MongoDB 9.x, embedding row shows 1024 dims
+- [ ] **Database Status** (below Create Indexes) lists each module collection as `missing` and indexes as `missing` on an empty database
 - [ ] Wrong password → ping row `fail` with credentials hint. Restore it
 - [ ] **Seed Database** → confirm → per-collection progress to done (`products` 2000, `nodes` 500)
-- [ ] **Create Indexes** → each index goes to `ready`; "All indexes ready"
+- [ ] **Create Indexes** → each index goes to `ready`; "All indexes ready"; Database Status refreshes to show doc counts and all indexes `ready`
 - [ ] Nav enables both modules
 - [ ] **Search Lab**: query returns 4 columns; hover cross-highlights; category chip and max price filter all columns; weight slider changes Hybrid order; **Query** opens drawer with pipeline, Copy works, Explain shows stats
 - [ ] **Graph View**: query renders a graph coloured by depth; click a node expands without the layout jumping; edge-type and node-type filters change the traversal; **Query** drawer shows `$vectorSearch` → `$graphLookup`

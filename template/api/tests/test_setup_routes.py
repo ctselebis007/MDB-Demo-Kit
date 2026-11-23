@@ -66,6 +66,30 @@ def test_status_unconfigured(client: TestClient):
     assert s["configured"] is False and s["seeded"] is False
 
 
+def test_inventory_without_modules_or_uri(client: TestClient):
+    inv = client.post("/api/setup/inventory", json={"db_name": "demo"}).json()
+    assert inv["reachable"] is False and inv["db_name"] == "demo"
+    assert inv["modules"] == [] and inv["collections"] == []
+    assert inv["error"]["code"] == "NOT_CONFIGURED"
+
+
+def test_inventory_lists_expected_and_reports_unreachable(fake_modules: str):
+    from app.main import create_app
+
+    with TestClient(create_app(fake_modules)) as client:
+        inv = client.post("/api/setup/inventory", json={"mongo_uri": URI}).json()
+    assert inv["reachable"] is False and inv["error"]["hint"]
+    assert inv["modules"] == ["widgets"]
+    [coll] = inv["collections"]
+    assert (coll["name"], coll["module"], coll["exists"]) == ("widgets", "widgets", False)
+    assert [(i["name"], i["kind"], i["status"]) for i in coll["indexes"]] == [
+        ("kind_1", "regular", "missing"),
+        ("widgets_search", "search", "missing"),
+        ("widgets_vector", "vectorSearch", "missing"),
+    ]
+    assert "topsecretpw" not in str(inv)
+
+
 class FakeProvider:
     name = "fake"
     supports_rerank = False
@@ -112,6 +136,12 @@ def test_seed_and_index_fake_module(
             job = _wait_job(client, client.post("/api/setup/indexes").json()["id"])
             assert job["status"] == "done", job
             assert client.get("/api/setup/status").json()["indexed"] is True
+
+            inv = client.post("/api/setup/inventory", json={}).json()
+            assert inv["reachable"] and inv["db_exists"] and inv["other_collections"] == []
+            [coll] = inv["collections"]
+            assert coll["exists"] and coll["count"] == 20
+            assert {i["status"] for i in coll["indexes"]} == {"ready"}
 
             client.put("/api/setup", json={"provider": "openai"})
             assert client.get("/api/setup/status").json()["reseed_required"] is True

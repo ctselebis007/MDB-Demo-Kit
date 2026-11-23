@@ -19,6 +19,8 @@ flowchart LR
 
 ```
 template/            Setup-only starter, runnable on its own
+  .github/           Copilot instructions + brainstorm/brainstorming skills (shipped to every demo)
+  docs/plans/        where agent-written design and implementation docs go
 modules/
   search-lab/        full-text vs vector vs hybrid vs rerank   { api/, web/, module.json }
   graph-view/        $vectorSearch + $graphLookup + D3 graph   { api/, web/, module.json }
@@ -48,6 +50,8 @@ npm run new -- demo-starter --out ~/demos
 ```
 
 Its README includes a "Build your own module" guide. Kit modules can still be added later with `add-module`.
+
+**Design with AI agents:** every generated demo (blank or with modules) includes GitHub Copilot instructions and the `brainstorm` / `brainstorming` skills (adapted from the Brainstorming_w_Agents workflow). In the demo, run `/brainstorm <your idea>` in Copilot Chat: the agent asks one question at a time, proposes 2-3 approaches, validates the design section by section against the module contract, and writes `docs/plans/YYYY-MM-DD-<topic>-design.md` plus an optional implementation plan. See "Design with AI agents" in the generated README.
 
 Add a module later:
 

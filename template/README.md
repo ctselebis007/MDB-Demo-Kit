@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-1. Open <http://127.0.0.1:5173> → **Setup**. Paste your connection string and API key, then **Save** and **Test Connections**.
+1. Open <http://127.0.0.1:5173> → **Setup**. Paste your connection string and API key, then **Save** and **Test Connections**. The **Database Status** panel then shows whether the database, each module's collections and their indexes already exist.
 2. Click **Seed Database**, then **Create Indexes** and wait until all indexes are ready.
 3. Open the demo pages in the nav.
 
@@ -56,6 +56,31 @@ Settings are stored server-side in `api/config/settings.json` (gitignored, mode 
 | `npm run build` | Production build of the web app |
 
 To re-theme the demo for a prospect, edit the module's `seed.py` (vocabulary), `indexes.py` and UI labels, then re-seed.
+
+## Design with AI agents
+
+This repo ships GitHub Copilot instructions and skills (in `.github/`) that turn a rough idea into a validated design and implementation plan for a new module, whether you start from the blank starter or from installed modules. Prerequisites: VS Code with GitHub Copilot Chat in agent mode. Copilot discovers everything in `.github/` automatically.
+
+Open Copilot Chat and run:
+
+```
+/brainstorm A demo for a retail prospect: semantic product search with filters and a "similar items" graph
+```
+
+The agent then:
+
+1. **Gathers context**: this README, `docs/plans/`, the installed modules and recent commits.
+2. **Asks one question at a time** (mostly multiple choice): audience, story, MongoDB capabilities to show, data shape and volume.
+3. **Proposes 2-3 approaches** with trade-offs and a recommendation (for example re-theme an installed module vs. build a new one).
+4. **Presents the design in 200-300 word sections**, mapped onto the module contract below (`seed.py`, `indexes.py`, `pipelines.py`, `router.py`, web page), and asks for approval after each.
+5. **Saves the design** to `docs/plans/YYYY-MM-DD-<topic>-design.md`.
+6. **Offers an implementation plan** (`docs/plans/YYYY-MM-DD-<topic>-implementation.md`) of small, testable tasks you can then ask the agent to implement.
+
+Tips: keep the first prompt short; push back if an approach feels wrong; say "skip" to move past a question or "go back" to revisit a section. The `brainstorming` skill is also picked up automatically when you ask the agent to design or plan a feature.
+
+Put prospect reference material (sample files, screenshots, notes) in the `TempAssets/` folder created with this demo: it is gitignored, so you can point the agent at it without committing it. Seed data must stay synthetic.
+
+Customize the workflow in `.github/copilot-instructions.md` (project context and conventions) and `.github/skills/*/SKILL.md` (the process).
 
 ## Build your own module
 
