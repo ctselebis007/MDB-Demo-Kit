@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { api, type Schemas } from '../../core/api'
 import { QueryDrawer, abbreviate } from '../../core/QueryDrawer'
-import { COLUMN_KEYS, otherRanks, rankIndex, type ColumnKey, type RankIndex } from './crossHighlight'
+import { COLUMN_KEYS, rankIndex, type ColumnKey, type RankIndex } from './crossHighlight'
 
 type Response = Schemas['SearchLabResponse']
 type Column = NonNullable<Response['text']>
@@ -19,14 +19,38 @@ export interface QueryRequest {
 
 const QUERY_URL = '/api/search-lab/query'
 
-const COLUMNS: Record<ColumnKey, { title: string; subtitle: string }> = {
-  text: { title: 'Full-text', subtitle: '$search · fuzzy · highlights' },
-  vector: { title: 'Vector', subtitle: '$vectorSearch · pre-filters' },
-  hybrid: { title: 'Hybrid', subtitle: '$rankFusion' },
-  rerank: { title: 'Hybrid + Rerank', subtitle: 'Voyage rerank-3' },
+const COLUMNS: Record<ColumnKey, { title: string; subtitle: string; short: string; color: string }> = {
+  text: { title: 'Full-text', subtitle: '$search · fuzzy · highlights', short: 'FTS', color: '#016bf8' },
+  vector: { title: 'Vector', subtitle: '$vectorSearch · pre-filters', short: 'VEC', color: '#7c3aed' },
+  hybrid: { title: 'Hybrid', subtitle: '$rankFusion', short: 'HYB', color: '#00a35c' },
+  rerank: { title: 'Hybrid + Rerank', subtitle: 'Voyage rerank-3', short: 'RR', color: '#e8590c' },
 }
 
-const SHORT: Record<ColumnKey, string> = { text: 'T', vector: 'V', hybrid: 'H', rerank: 'R' }
+function ModeDot({ color }: { color: string }) {
+  return <span aria-hidden className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: color }} />
+}
+
+function RankChips({ col, ranks }: { col: ColumnKey; ranks: Partial<Record<ColumnKey, number>> }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {COLUMN_KEYS.map((k) => {
+        const { title, short, color } = COLUMNS[k]
+        const r = ranks[k]
+        const self = k === col
+        return (
+          <span
+            key={k}
+            title={r ? `${title}: rank #${r}` : `${title}: not in top results`}
+            className={`rounded border px-1.5 py-0.5 font-mono text-[10px] leading-none font-bold whitespace-nowrap ${r ? '' : 'border-dashed opacity-35'}`}
+            style={{ borderColor: color, color: self ? '#fff' : color, background: self ? color : '#fff' }}
+          >
+            {short} {r ? `#${r}` : '–'}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 export function explainQuery(req: QueryRequest, col: ColumnKey) {
   return api.post<Response>(QUERY_URL, { ...req, explain: true, only: col }).then((r) => r[col]?.explain ?? null)
@@ -59,22 +83,32 @@ function ResultColumn(props: {
   disabledReason?: string | null
   loading: boolean
   ranks: RankIndex
-  hovered: string | null
+  focused: string | null
+  pinned: string | null
   onHover: (id: string | null) => void
+  onPin: (id: string) => void
   onExplain: () => void
 }) {
-  const { col, data, error, disabledReason, ranks, hovered, onHover } = props
+  const { col, data, error, disabledReason, ranks, focused, pinned, onHover, onPin } = props
   const meta = COLUMNS[col]
   const disabled = !!disabledReason
+  const click = (e: MouseEvent, id: string) => {
+    if ((e.target as HTMLElement).closest('a, button, details, summary')) return
+    onPin(id)
+  }
   return (
     <section
       aria-label={meta.title}
       title={disabledReason ?? undefined}
-      className={`flex min-w-0 flex-col rounded-lg border bg-white ${disabled ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-200'}`}
+      className={`flex min-w-0 flex-col rounded-lg border border-t-4 bg-white ${disabled ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-200'}`}
+      style={{ borderTopColor: meta.color }}
     >
       <header className="flex items-start justify-between border-b border-slate-100 px-3 py-2">
         <div>
-          <h2 className="font-semibold">{meta.title}</h2>
+          <h2 className="flex items-center gap-2 font-semibold" style={{ color: meta.color }}>
+            <ModeDot color={meta.color} />
+            {meta.title}
+          </h2>
           <p className="font-mono text-xs text-slate-500">{meta.subtitle}</p>
         </div>
         <div className="text-right">
@@ -88,39 +122,49 @@ function ResultColumn(props: {
         </p>
       )}
       {props.loading && !data && !disabled && <p className="p-3 text-sm text-slate-400">Searching…</p>}
-      <ol className="divide-y divide-slate-100">
-        {data?.results.map((hit) => (
-          <li
-            key={hit.id}
-            data-testid={`${col}-${hit.id}`}
-            data-hovered={hovered === hit.id}
-            onMouseEnter={() => onHover(hit.id)}
-            onMouseLeave={() => onHover(null)}
-            className={`px-3 py-2 text-sm transition-colors ${hovered === hit.id ? 'bg-mdb-green/15' : ''}`}
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="w-5 shrink-0 text-right font-mono text-xs text-slate-400">{hit.rank}</span>
-              <p className="flex-1 font-medium">
-                <Highlighted hit={hit} path="title" fallback={hit.title} />
-              </p>
-              <span className="font-mono text-xs text-slate-500">{hit.score.toFixed(3)}</span>
-            </div>
-            <p className="ml-7 line-clamp-2 text-xs text-slate-600">
-              <Highlighted hit={hit} path="description" fallback={hit.description} />
-            </p>
-            <div className="mt-1 ml-7 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-              <span>
-                {hit.category} · {hit.brand} · ${hit.price.toFixed(2)}
-              </span>
-              {otherRanks(ranks, hit.id, col).map(([k, r]) => (
-                <span key={k} className="rounded bg-slate-100 px-1 font-mono" title={`#${r} in ${COLUMNS[k].title}`}>
-                  {SHORT[k]}
-                  {r}
+      <ol className="space-y-1.5 p-2">
+        {data?.results.map((hit) => {
+          const isFocused = focused === hit.id
+          const isPinned = pinned === hit.id
+          return (
+            <li
+              key={hit.id}
+              data-testid={`${col}-${hit.id}`}
+              data-hovered={isFocused}
+              data-pinned={isPinned}
+              onMouseEnter={() => onHover(hit.id)}
+              onMouseLeave={() => onHover(null)}
+              onClick={(e) => click(e, hit.id)}
+              className={`cursor-pointer rounded-md border-l-[3px] px-2 py-1.5 text-sm transition-[background-color,opacity] duration-150 ${
+                isFocused
+                  ? `border-l-[#e0b400] bg-[#fff2a8] ${isPinned ? 'shadow-[inset_0_0_0_2px_#e0b400]' : 'shadow-[inset_0_0_0_1px_#e0b400]'}`
+                  : `border-l-transparent hover:bg-slate-50 ${focused ? 'opacity-45' : ''}`
+              }`}
+            >
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center self-start rounded-full px-1 text-[11px] font-semibold text-white"
+                  style={{ background: meta.color }}
+                >
+                  {hit.rank}
                 </span>
-              ))}
-            </div>
-          </li>
-        ))}
+                <p className="flex-1 font-medium">
+                  <Highlighted hit={hit} path="title" fallback={hit.title} />
+                </p>
+                <span className="font-mono text-xs text-slate-500">{hit.score.toFixed(3)}</span>
+              </div>
+              <div className="mt-1 ml-7">
+                <RankChips col={col} ranks={ranks.get(hit.id) ?? {}} />
+              </div>
+              <p className="mt-1 ml-7 line-clamp-2 text-xs text-slate-600">
+                <Highlighted hit={hit} path="description" fallback={hit.description} />
+              </p>
+              <p className="mt-1 ml-7 text-xs text-slate-500">
+                {hit.category} · {hit.brand} · ${hit.price.toFixed(2)}
+              </p>
+            </li>
+          )
+        })}
         {data && data.results.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">No results</li>}
       </ol>
       {data && <PipelinePanel col={col} pipeline={data.pipeline} onExplain={props.onExplain} />}
@@ -178,6 +222,7 @@ export function SearchLab() {
   const [weight, setWeight] = useState(0.5)
   const [request, setRequest] = useState<QueryRequest | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
+  const [pinned, setPinned] = useState<string | null>(null)
   const [drawer, setDrawer] = useState<ColumnKey | null>(null)
 
   const facets = useQuery({ queryKey: ['search-lab', 'facets'], queryFn: () => api.get<Facets>('/api/search-lab/facets') })
@@ -189,6 +234,12 @@ export function SearchLab() {
   })
   const data = result.data
   const ranks = useMemo(() => rankIndex(data ?? {}), [data])
+  const focused = pinned ?? hovered
+
+  // Keep the pin only while the pinned product is still in the results.
+  useEffect(() => {
+    setPinned((p) => (p && ranks.has(p) ? p : null))
+  }, [ranks])
 
   const build = (over: Partial<QueryRequest> = {}): QueryRequest => ({
     q: q.trim(),
@@ -273,6 +324,28 @@ export function SearchLab() {
       </form>
 
       {request && (
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          {COLUMN_KEYS.map((k) => (
+            <span key={k} className="inline-flex items-center gap-1.5 font-semibold">
+              <ModeDot color={COLUMNS[k].color} />
+              {COLUMNS[k].title}
+            </span>
+          ))}
+          <span className="text-slate-500">
+            Hover a result to highlight it in every column · click to pin
+            {pinned && (
+              <>
+                {' · '}
+                <button type="button" onClick={() => setPinned(null)} className="text-mdb-forest underline">
+                  clear pin
+                </button>
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
+      {request && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {COLUMN_KEYS.map((col) => (
             <ResultColumn
@@ -283,8 +356,10 @@ export function SearchLab() {
               disabledReason={col === 'rerank' ? data?.rerank_reason : null}
               loading={result.isFetching}
               ranks={ranks}
-              hovered={hovered}
+              focused={focused}
+              pinned={pinned}
               onHover={setHovered}
+              onPin={(id) => setPinned((p) => (p === id ? null : id))}
               onExplain={() => setDrawer(col)}
             />
           ))}

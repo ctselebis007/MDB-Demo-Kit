@@ -18,9 +18,3 @@ export function rankIndex(columns: Partial<Record<ColumnKey, Ranked | null | und
   }
   return index
 }
-
-/** Ranks of `id` in columns other than `self`, e.g. [['vector', 3], ['hybrid', 1]]. */
-export function otherRanks(index: RankIndex, id: string, self: ColumnKey): [ColumnKey, number][] {
-  const ranks = index.get(id) ?? {}
-  return COLUMN_KEYS.filter((k) => k !== self && ranks[k] != null).map((k) => [k, ranks[k]!])
-}

@@ -61,6 +61,27 @@ describe('SearchLab', () => {
     await user.hover(await screen.findByTestId('text-b'))
     expect(screen.getByTestId('vector-b')).toHaveAttribute('data-hovered', 'true')
     expect(screen.getByTestId('vector-a')).toHaveAttribute('data-hovered', 'false')
+    expect(within(screen.getByTestId('text-b')).getByTitle('Vector: rank #1')).toBeInTheDocument()
+    expect(within(screen.getByTestId('text-b')).getByTitle('Hybrid + Rerank: not in top results')).toBeInTheDocument()
+  })
+
+  it('click pins a result across columns until clicked again or cleared', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await user.click(await screen.findByTestId('text-b'))
+    await user.unhover(screen.getByTestId('text-b'))
+    await user.hover(screen.getByTestId('vector-a'))
+    expect(screen.getByTestId('hybrid-b')).toHaveAttribute('data-hovered', 'true')
+    expect(screen.getByTestId('hybrid-a')).toHaveAttribute('data-hovered', 'false')
+
+    await user.click(screen.getByRole('button', { name: 'clear pin' }))
+    expect(screen.getByTestId('hybrid-b')).toHaveAttribute('data-pinned', 'false')
+    expect(screen.getByTestId('hybrid-a')).toHaveAttribute('data-hovered', 'false')
+
+    await user.click(screen.getByTestId('vector-a'))
+    await user.click(screen.getByTestId('vector-a'))
+    expect(screen.getByTestId('text-a')).toHaveAttribute('data-pinned', 'false')
   })
 
   it('each column toggles its aggregation pipeline and copies the exact JSON', async () => {
