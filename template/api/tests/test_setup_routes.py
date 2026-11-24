@@ -66,10 +66,13 @@ def test_status_unconfigured(client: TestClient):
     assert s["configured"] is False and s["seeded"] is False
 
 
-def test_inventory_without_modules_or_uri(client: TestClient):
+def test_inventory_without_uri(client: TestClient):
+    # Runs in the blank starter and in demos with modules, so compare against what is installed.
+    installed = [m.slug for m in client.app.state.modules]  # type: ignore[attr-defined]
     inv = client.post("/api/setup/inventory", json={"db_name": "demo"}).json()
     assert inv["reachable"] is False and inv["db_name"] == "demo"
-    assert inv["modules"] == [] and inv["collections"] == []
+    assert inv["modules"] == installed
+    assert all(c["module"] in installed and c["exists"] is False for c in inv["collections"])
     assert inv["error"]["code"] == "NOT_CONFIGURED"
 
 
